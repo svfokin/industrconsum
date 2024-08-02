@@ -1,0 +1,66 @@
+SELECT xx1C.*, xxCounter.*, rayon.id, rayon.turg
+FROM xxCounter LEFT JOIN (xx1C LEFT JOIN rayon ON xx1C.distr_consum = rayon.name) ON xxCounter.id_1c = xx1C.identifier;
+
+select xx1C.id as id_ais, xx1C.consumer as FIO, xx1C.obj_conn as adress, xxCounter.gas_meter_model as typeCounter, xxCounter.fabric_num as nCounter, xxCounter.gas_meter_id as LS_GAS, rayon.turg as turg_name, rayon.id as rn, xx1C.indications as past_indications, xx1C.date_indic as date_indications, xxCounter.pc_name as fio_adres FROM xxCounter LEFT JOIN (xx1C LEFT JOIN rayon ON xx1C.distr_consum = rayon.name) ON xxCounter.id_1c = xx1C.identifier
+ 
+
+UPDATE xxCounter SET id_1c = substr(id_1c,1,36)
+
+
+CREATE VIEW izmer AS
+    SELECT xx1C.*,
+           xxCounter.*,
+           rayon.id,
+           rayon.turg
+      FROM xxCounter
+           LEFT JOIN
+           (
+               xx1C
+               LEFT JOIN
+               rayon ON xx1C.distr_consum = rayon.name
+           )
+           ON xxCounter.id_1c = xx1C.identifier;
+
+CREATE TABLE new AS SELECT * FROM izmer
+INSERT INTO new SELECT * FROM izmer
+
+CREATE VIEW izmer AS
+    SELECT xx1C.id AS id_ais,
+           xx1C.consumer AS FIO,
+           xx1C.obj_conn AS adress,
+           xxCounter.gas_meter_model AS typeCounter,
+           xxCounter.fabric_num AS nCounter,
+           xxCounter.gas_meter_id AS LS_GAS,
+           rayon.turg AS turg_name,
+           rayon.id AS rn,
+           xx1C.indications AS past_indications,
+           xx1C.date_indic AS date_indications,
+           xxCounter.pc_name AS fio_adres
+      FROM xxCounter
+           LEFT JOIN
+           (
+               xx1C
+               LEFT JOIN
+               rayon ON xx1C.distr_consum = rayon.name
+           )
+           ON xxCounter.id_1c = xx1C.identifier;
+
+
+UPDATE izmeritel
+   SET FIO = fio_adres,
+       adress = fio_adres,
+       turg_name = 0,
+       rn = 0
+ WHERE rn IS NULL;
+
+
+CREATE VIEW replay AS
+    SELECT max(izmeritel.id_ais) AS id_ais,
+           max(izmeritel.LS_GAS) AS id_replay,
+           Count(izmeritel.LS_GAS) AS ls_replay
+      FROM izmeritel
+     GROUP BY izmeritel.LS_GAS
+    HAVING ( ( (Count(izmeritel.LS_GAS) ) > 1) );
+
+
+delete from izmeritel where id_ais in (SELECT id_ais FROM replay);

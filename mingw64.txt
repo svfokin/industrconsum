@@ -1,0 +1,14 @@
+Для создания приложения с драйвером нужен mingw64.
+
+1. Запустить терминал PowerShell от имени администратора.
+
+2. Установка Chocolatey - система управления пакетами для Windows
+
+Set-ExecutionPolicy Bypass -Scope Process -Force; [System.Net.ServicePointManager]::SecurityProtocol = [System.Net.ServicePointManager]::SecurityProtocol -bor 3072; iex ((New-Object System.Net.WebClient).DownloadString('https://community.chocolatey.org/install.ps1'))
+
+3. Установка Среды разработки MinGW-w64 (Minimalist GNU for Windows), содержащей компилятор GCC (GNU Compiler Collection)
+
+choco install mingw
+
+
+https://ahdeyy.hashnode.dev/converting-csv-data-to-sqlite-in-golang
