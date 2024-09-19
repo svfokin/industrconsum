@@ -1,14 +1,16 @@
 package main
 
 import (
+	"bufio"
 	"database/sql"
 	"encoding/csv"
 	"fmt"
 	"io"
+	"log"
 	"os"
 	"strconv"
+	"strings"
 
-	//    "strings"
 	_ "github.com/mattn/go-sqlite3"
 	"github.com/xuri/excelize/v2"
 )
@@ -128,10 +130,41 @@ func createTable(db *sql.DB) {
 	}
 }
 
+func findReplace(filepath string) {
+
+	stringNeeded := "\t" + string(34)
+	stringToReplace := "\t"
+	file, err := os.Open(filepath)
+
+	if err != nil {
+		fmt.Println(err)
+	}
+
+	defer file.Close()
+
+	scanner := bufio.NewScanner(file)
+	var lines []string
+	for scanner.Scan() {
+		text := scanner.Text()
+		text = strings.Replace(text, stringNeeded, stringToReplace, -1)
+		lines = append(lines, text)
+	}
+
+	if err := scanner.Err(); err != nil {
+		log.Fatal(err)
+	}
+
+	err = os.WriteFile(filepath, []byte(strings.Join(lines, "\r\n")), 0644)
+	if err != nil {
+		log.Fatalln(err)
+	}
+
+}
+
 // функция для парсинга файла CSV
 // Входные параметры: название файла и символ разделителя
 // Выход:
-func parseCsv(filepath string, comma byte) ([][]string, []string) {
+func parseCsv(filepath string, comma byte, position byte) ([][]string, []string) {
 
 	file, err := os.Open(filepath)
 
@@ -163,9 +196,9 @@ func parseCsv(filepath string, comma byte) ([][]string, []string) {
 		records = append(records, record)
 	}
 
-	fmt.Println(i)
+	fmt.Println("Импорт данных из файла ", filepath, ". Загружено записей:", i)
 
-	return records[1:], records[0]
+	return records[position:], records[0]
 }
 
 func parseCounter(records [][]string) []tableCounter {
@@ -189,17 +222,33 @@ func parseCounter(records [][]string) []tableCounter {
 
 func parse1C(records [][]string) []table1C {
 	var recCounter []table1C
+	var space string
+	var recCount table1C
 	for _, record := range records {
-		recCount := table1C{
-			id:           record[0],
-			obj_conn:     record[1],
-			distr_conn:   record[2],
-			consumer:     record[3],
-			distr_consum: record[4],
-			identifier:   record[5],
-			indications:  record[6],
-			date_indic:   record[7],
-			counter_numb: record[8],
+		if len(record) == 9 {
+			recCount = table1C{
+				id:           record[0],
+				obj_conn:     record[1],
+				distr_conn:   record[2],
+				consumer:     record[3],
+				distr_consum: record[4],
+				identifier:   record[5],
+				indications:  record[6],
+				date_indic:   record[7],
+				counter_numb: record[8],
+			}
+		} else {
+			recCount = table1C{
+				id:           record[0],
+				obj_conn:     record[1],
+				distr_conn:   record[2],
+				consumer:     record[3],
+				distr_consum: record[4],
+				identifier:   record[5],
+				indications:  space,
+				date_indic:   space,
+				counter_numb: space,
+			}
 		}
 		recCounter = append(recCounter, recCount)
 	}
@@ -248,8 +297,9 @@ func insertData1C(db *sql.DB, recCounter []table1C) {
 		sqlStmt := `
   INSERT INTO xx1C(id, obj_conn, distr_conn, consumer, distr_consum, identifier, indications, date_indic, counter_numb) VALUES(?, ?, ?, ?, ?, ?, ?, ?, ?)
   `
-
-		_, err := db.Exec(sqlStmt, recCount.id, recCount.obj_conn, recCount.distr_conn, recCount.consumer, recCount.distr_consum, recCount.identifier, recCount.indications, recCount.date_indic, recCount.counter_numb)
+		//indic_str := strings.Join(strings.Fields(recCount.indications), "")
+		indic_str := strings.ReplaceAll(recCount.indications, ",", "")
+		_, err := db.Exec(sqlStmt, recCount.id, recCount.obj_conn, recCount.distr_conn, recCount.consumer, recCount.distr_consum, recCount.identifier, indic_str, recCount.date_indic, recCount.counter_numb)
 		if err != nil {
 			fmt.Println(err)
 		}
@@ -415,6 +465,7 @@ func createXls(db *sql.DB) {
 			}
 
 			ia = strconv.Itoa(i)
+			pok_ind, _ := strconv.ParseInt(pind, 10, 64)
 			f.SetCellValue("Sheet1", "A"+ia, id)
 			f.SetCellValue("Sheet1", "B"+ia, fio)
 			f.SetCellValue("Sheet1", "C"+ia, adr)
@@ -423,7 +474,11 @@ func createXls(db *sql.DB) {
 			f.SetCellValue("Sheet1", "F"+ia, ls)
 			f.SetCellValue("Sheet1", "G"+ia, uuid)
 			f.SetCellValue("Sheet1", "H"+ia, rn)
-			f.SetCellValue("Sheet1", "I"+ia, pind)
+			if pok_ind > 0 {
+				f.SetCellValue("Sheet1", "I"+ia, pok_ind)
+			} else {
+				f.SetCellValue("Sheet1", "I"+ia, pind)
+			}
 			f.SetCellValue("Sheet1", "J"+ia, dind)
 		}
 	} else {
@@ -434,6 +489,29 @@ func createXls(db *sql.DB) {
 	if err := f.SaveAs("izmeritel.xlsx"); err != nil {
 		fmt.Println(err)
 	}
+}
+
+func readXLS(filepath string) ([][]string, []string) {
+	f, err := excelize.OpenFile(filepath)
+	if err != nil {
+		fmt.Println(err)
+	}
+	defer f.Close()
+	var records [][]string
+	sheetname := f.GetSheetName(f.GetActiveSheetIndex())
+	records, err = f.GetRows(sheetname)
+	if err != nil {
+		fmt.Println(err)
+	}
+	i := len(records)
+	/*for _, row := range records {
+		for _, col := range row {
+			fmt.Print(col, "\t")
+		}
+		fmt.Println()
+	}*/
+	fmt.Println("Импорт данных из файла ", filepath, ". Загружено записей:", i)
+	return records[1:], records[0]
 }
 
 func Begin(db *sql.DB) error {
@@ -460,6 +538,14 @@ func Commit(db *sql.DB) error {
 
 // Главная программа приложения
 func main() {
+	arguments := os.Args
+	if len(arguments) < 3 {
+		fmt.Println("В командной строке должно быть 2 аргумента: файл *.xlsx и файл *.csv")
+		return
+	}
+
+	inputXLS := os.Args[1]
+	inputCSV := os.Args[2]
 
 	// удаляем, если существуют, выходные файлы
 	err := os.Remove("izmeritel.csv")
@@ -482,7 +568,9 @@ func main() {
 	db := openDatabase()
 	defer db.Close()
 
-	data, _ := parseCsv("imus.csv", '\t')
+	findReplace(inputCSV)
+
+	data, _ := parseCsv(inputCSV, '\t', 1)
 
 	if err := Begin(db); err != nil {
 		fmt.Println(err)
@@ -491,7 +579,8 @@ func main() {
 	insertDataCounter(db, parseCounter(data))
 	Commit(db)
 
-	data, _ = parseCsv("xxxx1C.csv", ';')
+	//data, _ = parseCsv("xxxx1C.csv", ';', 1)
+	data, _ = readXLS(inputXLS)
 	if err := Begin(db); err != nil {
 		fmt.Println(err)
 	}
@@ -502,6 +591,6 @@ func main() {
 
 	createXls(db)
 
-	fmt.Println("END")
+	fmt.Println("Обработка завершена. Сформирован файл izmeritel.xlsx")
 
 }

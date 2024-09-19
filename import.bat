@@ -1,0 +1,1 @@
+industrconsum.exe "C:/Users/Сергей/go/industrconsum/1c_gfc.xlsx" "C:/Users/Сергей/go/industrconsum/imus.csv"
